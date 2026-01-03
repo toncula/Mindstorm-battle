@@ -1,51 +1,88 @@
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>React Tavern Battle</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0"
-  }
-}
-</script>
-    <style>
-      @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-3px) rotate(-1deg); }
-        75% { transform: translateX(3px) rotate(1deg); }
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>React Tavern Battle</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @keyframes shake {
+
+      0%,
+      100% {
+        transform: translateX(0);
       }
-      @keyframes uc-pop-up {
-        0% { transform: scale(0.5) translateY(20px); opacity: 0; }
-        40% { transform: scale(1.5) translateY(0); opacity: 1; }
-        100% { transform: scale(1) translateY(-40px); opacity: 0; }
+
+      25% {
+        transform: translateX(-3px) rotate(-1deg);
       }
-      @keyframes uc-particle {
-        0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+
+      75% {
+        transform: translateX(3px) rotate(1deg);
       }
-      @keyframes shimmer {
-        0% { transform: translateX(-150%) skewX(-25deg); }
-        100% { transform: translateX(150%) skewX(-25deg); }
+    }
+
+    @keyframes uc-pop-up {
+      0% {
+        transform: scale(0.5) translateY(20px);
+        opacity: 0;
       }
-      @keyframes spin-slow {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+
+      40% {
+        transform: scale(1.5) translateY(0);
+        opacity: 1;
       }
-      .animate-spin-slow {
-        animation: spin-slow 8s linear infinite;
+
+      100% {
+        transform: scale(1) translateY(-40px);
+        opacity: 0;
       }
-    </style>
-  </head>
-  <body class="bg-slate-900 text-slate-100 overflow-hidden select-none">
-    <div id="root"></div>
-  </body>
+    }
+
+    @keyframes uc-particle {
+      0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+      }
+
+      100% {
+        transform: translate(var(--tx), var(--ty)) scale(0);
+        opacity: 0;
+      }
+    }
+
+    @keyframes shimmer {
+      0% {
+        transform: translateX(-150%) skewX(-25deg);
+      }
+
+      100% {
+        transform: translateX(150%) skewX(-25deg);
+      }
+    }
+
+    @keyframes spin-slow {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .animate-spin-slow {
+      animation: spin-slow 8s linear infinite;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-900 text-slate-100 overflow-hidden select-none">
+  <div id="root"></div>
+
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>
