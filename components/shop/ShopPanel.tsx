@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { PlayerState, CardData, EnergyType } from '../../types';
 import { RefreshCw, ArrowUpCircle, Lock, Unlock, Eye, EyeOff, Swords, Zap } from 'lucide-react';
 import UnitCard from './cards/UnitCard';
 import { tryPayEnergy, createWhiteEnergyRequest } from '../../simulation/energyEngine';
+import { playSound } from '../../services/audioService';
 
 interface ShopPanelProps {
     player: PlayerState;
@@ -13,7 +14,7 @@ interface ShopPanelProps {
     nextEnemies: CardData[];
     t: any;
     language: string;
-    refreshCost: number | EnergyType[]; // 支持数组或数字
+    refreshCost: number | EnergyType[];
     onLevelUpTavern: () => void;
     onToggleLock: () => void;
     onRefreshShop: () => void;
@@ -24,32 +25,132 @@ interface ShopPanelProps {
     onCardLeave: () => void;
 }
 
+interface VisualEnergyNode {
+    id: number;
+    type: EnergyType;
+    isNew?: boolean;
+}
+
+const EnergyBallItem: React.FC<{
+    node: VisualEnergyNode;
+    index: number;
+    total: number;
+    getStyle: (t: EnergyType) => string;
+}> = ({ node, index, total, getStyle }) => {
+    const [mounted, setMounted] = useState(!node.isNew);
+
+    useLayoutEffect(() => {
+        if (node.isNew && !mounted) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setMounted(true);
+                });
+            });
+        }
+    }, [node.isNew, mounted]);
+
+    const isFirst = index === 0;
+    const baseMargin = isFirst ? 0 : -18;
+
+    return (
+        <div
+            className={`
+        rounded-full border-[3px] shrink-0 h-12
+        transition-all duration-150 ease-out 
+        ${getStyle(node.type)}
+        ${mounted ? 'w-12 opacity-100 scale-100' : 'w-0 opacity-0 scale-0 border-0'}
+      `}
+            style={{
+                marginLeft: mounted ? `${baseMargin}px` : '0px',
+                zIndex: index,
+                transform: mounted ? `scale(${1 + (index / total) * 0.05})` : 'scale(0)',
+                boxShadow: mounted ? '0 4px 6px rgba(0,0,0,0.3)' : 'none'
+            }}
+        />
+    );
+};
+
 const ShopPanel: React.FC<ShopPanelProps> = ({
     player, shopCards, isShopLocked, shopViewMode, isTransitioning, nextEnemies,
     t, language, refreshCost,
     onLevelUpTavern, onToggleLock, onRefreshShop, onToggleViewMode,
     onStartCombat, onBuyCard, onCardHover, onCardLeave
 }) => {
-    // 辅助函数：将数字或数组转换为统一的请求数组
+
+    // --- 能量队列动画系统 ---
+    const [visualQueue, setVisualQueue] = useState<VisualEnergyNode[]>([]);
+    const nextIdRef = useRef(0);
+    const isInitialMount = useRef(true);
+
+    useEffect(() => {
+        if (isInitialMount.current) {
+            const initialNodes = player.energyQueue.map(type => ({
+                id: nextIdRef.current++,
+                type,
+                isNew: false
+            }));
+            setVisualQueue(initialNodes);
+            isInitialMount.current = false;
+            return;
+        }
+
+        let timeoutId: NodeJS.Timeout;
+
+        const processQueue = () => {
+            setVisualQueue(current => {
+                const targetQueue = player.energyQueue;
+
+                if (current.length === targetQueue.length) {
+                    const isMatch = current.every((node, i) => node.type === targetQueue[i]);
+                    if (isMatch) return current;
+                }
+
+                let next = [...current];
+                let delay = 100;
+
+                if (current.length < targetQueue.length) {
+                    const newType = targetQueue[current.length];
+                    next.push({
+                        id: nextIdRef.current++,
+                        type: newType,
+                        isNew: true
+                    });
+                    playSound('pop');
+                } else if (current.length > targetQueue.length) {
+                    next.shift();
+                    playSound('click');
+                } else {
+                    return targetQueue.map((type, i) => ({
+                        id: current[i]?.id || nextIdRef.current++,
+                        type,
+                        isNew: false
+                    }));
+                }
+
+                timeoutId = setTimeout(processQueue, delay);
+                return next;
+            });
+        };
+
+        timeoutId = setTimeout(processQueue, 0);
+        return () => clearTimeout(timeoutId);
+    }, [player.energyQueue]);
+
     const getCostRequest = (cost: number | EnergyType[]) => {
         return Array.isArray(cost) ? cost : createWhiteEnergyRequest(cost);
     };
 
-    // 检查是否支付得起
     const canAfford = (cost: number | EnergyType[]) => {
         return tryPayEnergy(getCostRequest(cost), player.energyQueue).success;
     };
 
-    // 预计算各种操作的“买得起”状态
     const canAffordUpgrade = canAfford(player.tavernUpgradeCost);
     const canAffordRefresh = canAfford(refreshCost);
     const canAffordUnit = canAfford(3);
     const isMaxTier = player.tavernTier >= 4;
 
-    // 渲染能量消耗的小球图标（增强版）
     const renderCostBalls = (cost: number | EnergyType[]) => {
         const costArray = Array.isArray(cost) ? cost : Array(cost).fill(EnergyType.WHITE);
-
         return (
             <div className="flex -space-x-1.5 items-center">
                 {costArray.map((type, i) => (
@@ -78,9 +179,17 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
         }
     };
 
+    // --- Dynamic Width Calculation for Retention Box ---
+    // Ball size 48px (w-12), overlap 18px (margin -18).
+    // Effective width per ball = 30px (48 - 18), plus last ball full 48px.
+    // Formula: 48 + (N-1)*30.
+    // Plus some padding (e.g. 12px) to frame it nicely.
+    const retentionCount = Math.max(1, player.energyRetention);
+    const retentionBoxWidth = 48 + (retentionCount - 1) * 30 + 24; // +24px for padding
+
     return (
         <div className="flex-1 flex flex-col relative z-10 min-h-0 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
-            {/* --- Shop Header Controls --- */}
+            {/* Header Controls */}
             <div className="flex items-center justify-between px-6 py-3 bg-slate-950/50 border-b border-slate-800 shrink-0 gap-4 shadow-lg z-20">
 
                 {/* Left: Tavern Tech Level */}
@@ -140,7 +249,6 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
                             <RefreshCw size={18} className={canAffordRefresh ? "group-hover:rotate-180 transition-transform duration-500" : ""} />
                             <span>{t.ui.refresh}</span>
                         </div>
-                        {/* Cost Badge */}
                         <div className="bg-slate-950/80 px-2 py-1 rounded-md flex items-center gap-1 border border-white/10 shadow-inner">
                             {renderCostBalls(refreshCost)}
                         </div>
@@ -189,10 +297,8 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
                 </div>
             </div>
 
-            {/* --- Main Content Area --- */}
+            {/* Main Content Area */}
             <div className="flex-1 p-4 overflow-y-auto custom-scrollbar relative z-0">
-                {/* Shop Cards Mode */}
-                {/* 改用 Flex 布局，使卡牌紧凑排列，解决 grid 列宽导致的间距问题 */}
                 <div className={`
              absolute inset-0 p-4 flex flex-wrap content-start justify-center gap-3 transition-opacity duration-300
              ${shopViewMode === 'SHOP' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'}
@@ -218,7 +324,6 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
                     )}
                 </div>
 
-                {/* Enemy Intel Mode */}
                 <div className={`
              absolute inset-0 p-4 overflow-y-auto transition-opacity duration-300 bg-slate-900/80 backdrop-blur-md
              ${shopViewMode === 'INTEL' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'}
@@ -257,38 +362,57 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
                 </div>
             </div>
 
-            {/* --- ENERGY QUEUE (Integrated) --- */}
+            {/* --- ENERGY QUEUE (Integrated & Animated) --- */}
             <div className="absolute bottom-6 right-6 z-30 pointer-events-none flex flex-col items-end gap-1">
-                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/40 border border-white/5 backdrop-blur-md">
-                    <Zap size={12} className="text-yellow-400 fill-yellow-400 animate-pulse" />
+                {/* Label */}
+                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/40 border border-white/5 backdrop-blur-md mb-1">
+                    
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
-                        Flux Capacity
+                        Retention: <span className="text-amber-400">{player.energyRetention}</span>
                     </span>
                 </div>
 
-                <div className="relative h-20 min-w-[180px] px-2 flex items-center justify-end">
-                    <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-xl rounded-full border border-white/10 shadow-2xl" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-50 rounded-full" />
+                {/* QUEUE CONTAINER 
+             - Aligned to Right (items-end in parent)
+             - `inline-flex` allows the container to grow naturally with content
+             - `overflow-visible` allows balls to spill out if needed, though here we want them to layout normally
+          */}
+                <div className="relative inline-flex items-center justify-end h-20 transition-all duration-500">
 
-                    <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-1 bg-blue-900/30 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.2)]" />
+                    {/* RETENTION FRAME (Fixed Box)
+                 - Positioned absolute to the RIGHT of the content (right-0)
+                 - Shifted slightly right (translate-x-1.5 = 6px) to center the balls with padding
+                 - Covers the LAST N balls (Indices ... N)
+                 - Width dynamic based on retention
+                 - Updated: Bold border (border-2) and shifted left (translate-x-1.5 instead of 3)
+              */}
+                    <div
+                        className="absolute top-0 bottom-0 right-0 bg-slate-950/60 backdrop-blur-xl rounded-full border-2 border-white/20 shadow-2xl transition-all duration-300 translate-x-1"
+                        style={{ width: `${retentionBoxWidth}px` }}
+                    >
+                        {/* Inner Glow Track */}
+                        <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-1 bg-blue-900/30 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.2)]" />
 
-                    <div className="relative z-10 flex items-center justify-end pr-3 pl-3 py-2 w-full overflow-hidden">
-                        {player.energyQueue.length === 0 ? (
-                            <span className="text-slate-500 font-mono text-xs animate-pulse mr-2">EMPTY</span>
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-50 rounded-full" />
+                    </div>
+
+                    {/* BALLS
+                 - Rendered normally (0, 1, 2, 3...)
+                 - Index 0 is Leftmost.
+                 - New balls (Index N) appear on Right.
+              */}
+                    <div className="relative z-10 flex items-center px-3 py-2">
+                        {visualQueue.length === 0 ? (
+                            // Placeholder text inside retention box area
+                            <span className="text-slate-500 font-mono text-xs animate-pulse ml-4 w-full">EMPTY</span>
                         ) : (
-                            player.energyQueue.map((type, index) => (
-                                <div
-                                    key={index}
-                                    className={`
-                                w-12 h-12 rounded-full border-[3px] shrink-0 transition-all duration-500 ease-out transform
-                                ${getQueueBallStyle(type)}
-                            `}
-                                    style={{
-                                        marginLeft: index === 0 ? 0 : '-18px',
-                                        zIndex: index,
-                                        transform: `scale(${1 + (index / player.energyQueue.length) * 0.05})`,
-                                        filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))'
-                                    }}
+                            visualQueue.map((node, index) => (
+                                <EnergyBallItem
+                                    key={node.id}
+                                    node={node}
+                                    index={index}
+                                    total={visualQueue.length}
+                                    getStyle={getQueueBallStyle}
                                 />
                             ))
                         )}

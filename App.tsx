@@ -9,7 +9,8 @@ import {
 import {
   INITIAL_ENERGY,
   INITIAL_INCOME,
-  MAX_INCOME, // 假设最大收入上限仍沿用此常量名，代表最大长度 (例如 10)
+  MAX_INCOME_CAP,
+  INITIAL_RETENT,
   INITIAL_ADVENTURE_POINTS,
   MAX_ADVENTURE_POINTS,
   INITIAL_PLAYER_HP,
@@ -35,19 +36,16 @@ import GameOverScreen from './components/screens/GameOverScreen';
 import VictoryScreen from './components/screens/VictoryScreen';
 import RoundOverScreen from './components/screens/RoundOverScreen';
 
-// 引入 EnergyQueue 组件
-//import EnergyQueue from './components/shop/EnergyQueue';
-
 const App: React.FC = () => {
   const [phase, setPhase] = useState<GamePhase>(GamePhase.START_MENU);
   const [round, setRound] = useState(1);
   const [isInfiniteMode, setIsInfiniteMode] = useState(false);
 
-  // 核心修改: Income 现在是 EnergyType[]，初始化时需要展开复制
   const [player, setPlayer] = useState<PlayerState>({
     hp: INITIAL_PLAYER_HP,
     energyQueue: [...INITIAL_ENERGY],
-    income: [...INITIAL_INCOME], // 复制初始收入数组
+    income: [...INITIAL_INCOME],
+    energyRetention: INITIAL_RETENT, // 初始化保留 1 点能量
     adventurePoints: INITIAL_ADVENTURE_POINTS,
     tavernTier: 1,
     tavernUpgradeCost: getBaseTavernCost(1),
@@ -100,7 +98,8 @@ const App: React.FC = () => {
     setPlayer({
       hp: INITIAL_PLAYER_HP,
       energyQueue: [...INITIAL_ENERGY],
-      income: [...INITIAL_INCOME], // 重置为初始数组
+      income: [...INITIAL_INCOME],
+      energyRetention: INITIAL_RETENT, // 重置保留
       adventurePoints: INITIAL_ADVENTURE_POINTS,
       tavernTier: initialTier,
       tavernUpgradeCost: getBaseTavernCost(initialTier),
@@ -150,6 +149,7 @@ const App: React.FC = () => {
     return enemyConfig.reduce((total, card) => total + card.value, 0);
   }, [enemyConfig]);
 
+  // --- 核心修改：开始战斗 ---
   const startCombat = () => {
     handleInteraction();
     if (isTransitioning) return;
@@ -161,11 +161,13 @@ const App: React.FC = () => {
 
     const { newHand, goldGenerated, summaryEffects } = calculateTurnEndEffects(player.hand);
 
-    // 安全检查：确保 goldGenerated 是数字（它代表额外生成的白色能量数量）
     const safeGoldGenerated = Number.isNaN(Number(goldGenerated)) ? 0 : Number(goldGenerated);
 
+    // 修改点：战斗开始时，仅保留前 energyRetention 个能量
+    // slice(0, retention) 会保留数组最左边（index 0）的元素，即“旧”能量
     setPlayer(prev => ({
       ...prev,
+      energyQueue: prev.energyQueue.slice(0, prev.energyRetention),
       hand: newHand
     }));
 
@@ -204,11 +206,8 @@ const App: React.FC = () => {
       }
     }
 
-    // --- 预测下一回合的收入（用于展示） ---
-    // 复制当前收入数组
     const nextIncomeQueue = [...player.income];
-    // 如果长度还没到上限，并且不是无限模式的特定限制，预测会增加一个白色能量
-    if (nextIncomeQueue.length < MAX_INCOME) {
+    if (nextIncomeQueue.length < MAX_INCOME_CAP) {
       nextIncomeQueue.push(EnergyType.WHITE);
     }
 
@@ -218,7 +217,7 @@ const App: React.FC = () => {
     setRoundSummary({
       winner,
       damageTaken: damage,
-      baseIncome: nextIncomeQueue, // 传递整个数组给 Summary 界面
+      baseIncome: nextIncomeQueue,
       effectGold: effectEnergyCount,
       adventurePointsEarned: 1,
       effects: Array.from(new Set(effectTexts))
@@ -231,6 +230,7 @@ const App: React.FC = () => {
     handleBattleEnd('PLAYER');
   };
 
+  // --- 核心修改：下一回合 ---
   const handleNextRound = (e: React.MouseEvent) => {
     e.stopPropagation();
     handleInteraction();
@@ -240,27 +240,27 @@ const App: React.FC = () => {
     const nextRound = won ? round + 1 : round;
     setRound(nextRound);
 
-    // 1. 获取额外能量的数量（来自卡牌特效）
-    const effectEnergyCount = Math.max(0, Math.floor(Number(pendingTurnEffects?.gold) || 0));
+    const effectEnergyCount = Number(pendingTurnEffects?.gold) || 0;
 
-    // 2. 计算新的收入数组（Income Growth）
+    // 1. Calculate New Income Structure (Growth)
     const nextIncomeQueue = [...player.income];
-    if (nextIncomeQueue.length < MAX_INCOME) {
-      nextIncomeQueue.push(EnergyType.WHITE); // 每回合增加一个白色能量上限
+    if (nextIncomeQueue.length < MAX_INCOME_CAP) {
+      nextIncomeQueue.push(EnergyType.WHITE);
     }
 
-    // 3. 生成本回合的能量供给
-    // 基础收入 + 特效生成的白色能量
+    // 2. Prepare New Energy Batch
     const generatedIncome = [...nextIncomeQueue];
-    const generatedEffects = Array(effectEnergyCount).fill(EnergyType.WHITE);
-
+    const generatedEffects = Array(Math.max(0, Math.floor(effectEnergyCount))).fill(EnergyType.WHITE);
     const newEnergyBatch = [...generatedIncome, ...generatedEffects];
 
+    // 修改点：不再先清空。因为能量已经在 startCombat 中截断了。
+    // 我们现在只需要切换到 Shop，然后延迟注入新能量以播放动画。
+
+    // Phase 1: 更新回合数、收入等级等，保持能量不变（此时应该只有保留下来的能量）
     setPlayer(prev => ({
       ...prev,
-      // 将新生成的能量添加到现有队列的末尾
-      energyQueue: [...prev.energyQueue, ...newEnergyBatch],
-      income: nextIncomeQueue, // 更新玩家的收入属性（已成长）
+      // energyQueue 保持现状 (此时只有 retained balls)
+      income: nextIncomeQueue,
       adventurePoints: Math.min(prev.adventurePoints + 1, MAX_ADVENTURE_POINTS),
       tavernUpgradeCost: Math.max(0, prev.tavernUpgradeCost - 1),
     }));
@@ -274,7 +274,17 @@ const App: React.FC = () => {
     } else {
       setIsShopLocked(false);
     }
+
     setPhase(GamePhase.SHOP);
+
+    // Phase 2: 注入新能量，触发 ShopPanel 的 "Push" 动画
+    // 将新能量添加到现有保留能量的后面
+    setTimeout(() => {
+      setPlayer(prev => ({
+        ...prev,
+        energyQueue: [...prev.energyQueue, ...newEnergyBatch]
+      }));
+    }, 500);
   };
 
   const toggleLanguage = () => {
@@ -292,7 +302,8 @@ const App: React.FC = () => {
     setPlayer({
       hp: INITIAL_PLAYER_HP,
       energyQueue: [...INITIAL_ENERGY],
-      income: [...INITIAL_INCOME], // 确保重置为初始数组
+      income: [...INITIAL_INCOME],
+      energyRetention: INITIAL_RETENT,
       adventurePoints: INITIAL_ADVENTURE_POINTS,
       tavernTier: 1,
       tavernUpgradeCost: getBaseTavernCost(1),

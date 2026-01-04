@@ -180,8 +180,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
 
         setPlayer(prev => ({
             ...prev,
-            // Refund Energy: Push 1 white energy to end of queue
-            energyQueue: [...prev.energyQueue, EnergyType.WHITE],
+            energyQueue: [EnergyType.WHITE, ...prev.energyQueue],
             hand: newHand
         }));
         onCardLeave();

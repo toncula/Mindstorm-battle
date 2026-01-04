@@ -14,7 +14,8 @@ export const INITIAL_ENERGY = [EnergyType.WHITE, EnergyType.WHITE, EnergyType.WH
 export const INITIAL_PLAYER_HP = 3;
 export const INITIAL_INCOME = [EnergyType.WHITE, EnergyType.WHITE, EnergyType.WHITE];
 export const ADDTIONAL_INCOME = [];
-export const MAX_INCOME = 10;
+export const INITIAL_RETENT = 1;
+export const MAX_INCOME_CAP = 10;
 //export const INITIAL_GOLD = 3; 
 export const INITIAL_ADVENTURE_POINTS = 6;
 export const MAX_ADVENTURE_POINTS = 6;
@@ -49,7 +50,7 @@ export const FLASH_ANIM_DURATION = 200;
 // Helper to determine the starting cost for the NEXT tier
 export const getBaseTavernCost = (level: number) => {
   switch (level) {
-    case 1: return 5;
+    case 1: return 4;
     case 2: return 7;
     case 3: return 9;
     case 4: return 11;

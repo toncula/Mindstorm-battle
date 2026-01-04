@@ -191,6 +191,7 @@ export interface PlayerState {
   // gold: number; // REMOVED
   energyQueue: EnergyType[]; // REPLACED gold
   income: EnergyType[]; 
+  energyRetention: number;
   adventurePoints: number; // Kept for structure, though unused visibly
   tavernTier: number;
   tavernUpgradeCost: number;
