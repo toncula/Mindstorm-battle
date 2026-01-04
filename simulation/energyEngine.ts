@@ -87,6 +87,36 @@ export const tryPayEnergy = (
 };
 
 /**
+ * 获取用于支付成本的能量球索引
+ * @param costRequests 需要的能量类型数组
+ * @param currentQueue 当前玩家的能量队列
+ * @returns { number[] | null } 如果支付成功，返回被使用的能量球索引数组；如果失败，返回 null
+ */
+export const getUsedIndices = (
+    costRequests: EnergyType[],
+    currentQueue: EnergyType[]
+): number[] | null => {
+    // 1. 包装队列以支持标记状态
+    const wrappedQueue: EnergyNode[] = currentQueue.map((type, index) => ({
+        type,
+        originalIndex: index,
+        used: false
+    }));
+
+    // 2. 执行算法
+    const success = findSolutionRecursive(0, wrappedQueue, costRequests);
+
+    // 3. 返回结果
+    if (success) {
+        return wrappedQueue
+            .filter(node => node.used)
+            .map(node => node.originalIndex);
+    } else {
+        return null;
+    }
+};
+
+/**
  * 辅助函数：生成纯白色能量的请求数组 (兼容旧的金币逻辑)
  */
 export const createWhiteEnergyRequest = (amount: number): EnergyType[] => {

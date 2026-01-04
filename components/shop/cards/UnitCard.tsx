@@ -24,6 +24,9 @@ interface UnitCardProps {
     onHover?: (card: CardData, rect: DOMRect) => void;
     onLeave?: () => void;
     onSelect?: (card: CardData) => void;
+    // New props for cost preview
+    onCostMouseEnter?: () => void;
+    onCostMouseLeave?: () => void;
 }
 
 const getUnitIcon = (type: UnitType) => {
@@ -48,7 +51,9 @@ const UnitCard: React.FC<UnitCardProps> = ({
     onSell,
     onHover,
     onLeave,
-    onSelect
+    onSelect,
+    onCostMouseEnter,
+    onCostMouseLeave
 }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [growthAnim, setGrowthAnim] = useState<{ val: number; key: number } | null>(null);
@@ -281,6 +286,8 @@ const UnitCard: React.FC<UnitCardProps> = ({
                         {location === 'SHOP' && (
                             <button
                                 onClick={() => onBuy?.(card)}
+                                onMouseEnter={() => onCostMouseEnter?.()}
+                                onMouseLeave={() => onCostMouseLeave?.()}
                                 disabled={!canAfford}
                                 className={`w-full py-1.5 rounded font-bold text-sm transition-all border shadow-lg active:scale-95 flex items-center justify-center gap-1
                             ${canAfford

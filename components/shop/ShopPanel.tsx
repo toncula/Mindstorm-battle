@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { PlayerState, CardData, EnergyType } from '../../types';
 import { RefreshCw, ArrowUpCircle, Lock, Unlock, Eye, EyeOff, Swords, Zap } from 'lucide-react';
 import UnitCard from './cards/UnitCard';
-import { tryPayEnergy, createWhiteEnergyRequest } from '../../simulation/energyEngine';
+import { tryPayEnergy, createWhiteEnergyRequest, getUsedIndices } from '../../simulation/energyEngine';
 import { playSound } from '../../services/audioService';
 
 interface ShopPanelProps {
@@ -36,7 +36,8 @@ const EnergyBallItem: React.FC<{
     index: number;
     total: number;
     getStyle: (t: EnergyType) => string;
-}> = ({ node, index, total, getStyle }) => {
+    isHighlighted?: boolean;
+}> = ({ node, index, total, getStyle, isHighlighted }) => {
     const [mounted, setMounted] = useState(!node.isNew);
 
     useLayoutEffect(() => {
@@ -56,14 +57,16 @@ const EnergyBallItem: React.FC<{
         <div
             className={`
         rounded-full border-[3px] shrink-0 h-12
-        transition-all duration-150 ease-out 
+        transition-all duration-300 ease-out 
         ${getStyle(node.type)}
         ${mounted ? 'w-12 opacity-100 scale-100' : 'w-0 opacity-0 scale-0 border-0'}
       `}
             style={{
                 marginLeft: mounted ? `${baseMargin}px` : '0px',
                 zIndex: index,
-                transform: mounted ? `scale(${1 + (index / total) * 0.05})` : 'scale(0)',
+                transform: isHighlighted
+                    ? `scale(${1 + (index / total) * 0.05}) translateY(-24px)`
+                    : `scale(${1 + (index / total) * 0.05})`,
                 boxShadow: mounted ? '0 4px 6px rgba(0,0,0,0.3)' : 'none'
             }}
         />
@@ -79,6 +82,7 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
 
     // --- 能量队列动画系统 ---
     const [visualQueue, setVisualQueue] = useState<VisualEnergyNode[]>([]);
+    const [previewIndices, setPreviewIndices] = useState<number[]>([]);
     const nextIdRef = useRef(0);
     const isInitialMount = useRef(true);
 
@@ -144,6 +148,19 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
         return tryPayEnergy(getCostRequest(cost), player.energyQueue).success;
     };
 
+    // --- Preview Logic ---
+    const handlePreviewCost = (cost: number | EnergyType[]) => {
+        const req = getCostRequest(cost);
+        const indices = getUsedIndices(req, player.energyQueue);
+        if (indices) {
+            setPreviewIndices(indices);
+        }
+    };
+
+    const clearPreview = () => {
+        setPreviewIndices([]);
+    };
+
     const canAffordUpgrade = canAfford(player.tavernUpgradeCost);
     const canAffordRefresh = canAfford(refreshCost);
     const canAffordUnit = canAfford(3);
@@ -157,9 +174,9 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
                     <div
                         key={i}
                         className={`w-3.5 h-3.5 rounded-full border border-slate-400 shadow-sm shrink-0 ${type === EnergyType.WHITE ? 'bg-white' :
-                                type === EnergyType.RED ? 'bg-red-500' :
-                                    type === EnergyType.GREEN ? 'bg-emerald-500' :
-                                        type === EnergyType.BLUE ? 'bg-blue-500' : 'bg-slate-500'
+                            type === EnergyType.RED ? 'bg-red-500' :
+                                type === EnergyType.GREEN ? 'bg-emerald-500' :
+                                    type === EnergyType.BLUE ? 'bg-blue-500' : 'bg-slate-500'
                             }`}
                         style={{ zIndex: i }}
                     />
@@ -180,12 +197,8 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
     };
 
     // --- Dynamic Width Calculation for Retention Box ---
-    // Ball size 48px (w-12), overlap 18px (margin -18).
-    // Effective width per ball = 30px (48 - 18), plus last ball full 48px.
-    // Formula: 48 + (N-1)*30.
-    // Plus some padding (e.g. 12px) to frame it nicely.
     const retentionCount = Math.max(1, player.energyRetention);
-    const retentionBoxWidth = 48 + (retentionCount - 1) * 30 + 24; // +24px for padding
+    const retentionBoxWidth = 48 + (retentionCount - 1) * 30 + 24;
 
     return (
         <div className="flex-1 flex flex-col relative z-10 min-h-0 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
@@ -207,6 +220,8 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
                             <button
                                 onClick={onLevelUpTavern}
                                 disabled={isMaxTier || !canAffordUpgrade}
+                                onMouseEnter={() => !isMaxTier && handlePreviewCost(player.tavernUpgradeCost)}
+                                onMouseLeave={clearPreview}
                                 className={`
                             flex items-center gap-2 px-3 py-1 rounded text-xs font-bold transition-all border
                             ${isMaxTier
@@ -237,6 +252,8 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
                     <button
                         onClick={onRefreshShop}
                         disabled={!canAffordRefresh}
+                        onMouseEnter={() => handlePreviewCost(refreshCost)}
+                        onMouseLeave={clearPreview}
                         className={`
                     flex items-center gap-3 px-5 py-2.5 rounded-xl font-bold text-sm transition-all border shadow-lg active:scale-95
                     ${canAffordRefresh
@@ -313,6 +330,8 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
                                 onBuy={onBuyCard}
                                 onHover={onCardHover}
                                 onLeave={onCardLeave}
+                                onCostMouseEnter={() => handlePreviewCost(3)}
+                                onCostMouseLeave={clearPreview}
                             />
                         </div>
                     ))}
@@ -366,44 +385,28 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
             <div className="absolute bottom-6 right-6 z-30 pointer-events-none flex flex-col items-end gap-1">
                 {/* Label */}
                 <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/40 border border-white/5 backdrop-blur-md mb-1">
-                    
+
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
                         Retention: <span className="text-amber-400">{player.energyRetention}</span>
                     </span>
                 </div>
 
-                {/* QUEUE CONTAINER 
-             - Aligned to Right (items-end in parent)
-             - `inline-flex` allows the container to grow naturally with content
-             - `overflow-visible` allows balls to spill out if needed, though here we want them to layout normally
-          */}
+                {/* QUEUE CONTAINER */}
                 <div className="relative inline-flex items-center justify-end h-20 transition-all duration-500">
 
-                    {/* RETENTION FRAME (Fixed Box)
-                 - Positioned absolute to the RIGHT of the content (right-0)
-                 - Shifted slightly right (translate-x-1.5 = 6px) to center the balls with padding
-                 - Covers the LAST N balls (Indices ... N)
-                 - Width dynamic based on retention
-                 - Updated: Bold border (border-2) and shifted left (translate-x-1.5 instead of 3)
-              */}
+                    {/* RETENTION FRAME */}
                     <div
                         className="absolute top-0 bottom-0 right-0 bg-slate-950/60 backdrop-blur-xl rounded-full border-2 border-white/20 shadow-2xl transition-all duration-300 translate-x-1"
                         style={{ width: `${retentionBoxWidth}px` }}
                     >
                         {/* Inner Glow Track */}
                         <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-1 bg-blue-900/30 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.2)]" />
-
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-50 rounded-full" />
                     </div>
 
-                    {/* BALLS
-                 - Rendered normally (0, 1, 2, 3...)
-                 - Index 0 is Leftmost.
-                 - New balls (Index N) appear on Right.
-              */}
+                    {/* BALLS */}
                     <div className="relative z-10 flex items-center px-3 py-2">
                         {visualQueue.length === 0 ? (
-                            // Placeholder text inside retention box area
                             <span className="text-slate-500 font-mono text-xs animate-pulse ml-4 w-full">EMPTY</span>
                         ) : (
                             visualQueue.map((node, index) => (
@@ -413,6 +416,7 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
                                     index={index}
                                     total={visualQueue.length}
                                     getStyle={getQueueBallStyle}
+                                    isHighlighted={previewIndices.includes(index)}
                                 />
                             ))
                         )}
