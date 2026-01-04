@@ -29,8 +29,8 @@ const findSolutionRecursive = (
     // 获取目标： 拿出当前要处理的请求
     const req = requests[requestIdx];
 
-    // 倒序搜索： 从队列的最后一个小球开始，向第一个小球遍历
-    for (let i = currentQueue.length - 1; i >= 0; i--) {
+    // 从左向右搜索
+    for (let i = 0; i <= currentQueue.length - 1; i++) {
         const node = currentQueue[i];
 
         // 检查： 这个球符合当前请求吗？且未被占用

@@ -162,12 +162,12 @@ const App: React.FC = () => {
     const { newHand, goldGenerated, summaryEffects } = calculateTurnEndEffects(player.hand);
 
     const safeGoldGenerated = Number.isNaN(Number(goldGenerated)) ? 0 : Number(goldGenerated);
-
-    // 修改点：战斗开始时，仅保留前 energyRetention 个能量
-    // slice(0, retention) 会保留数组最左边（index 0）的元素，即“旧”能量
+    
     setPlayer(prev => ({
       ...prev,
-      energyQueue: prev.energyQueue.slice(0, prev.energyRetention),
+      energyQueue: prev.energyRetention > 0
+        ? prev.energyQueue.slice(-prev.energyRetention)
+        : [],
       hand: newHand
     }));
 
