@@ -1,5 +1,5 @@
 {
-  "name": "React Tavern Battle",
-  "description": "A strategy deck-builder where cards deploy units into a real-time battle simulation. Manage Gold and Essence to upgrade your army and consult the Oracle for advice.",
+  "name": "Mindstorm Battle",
+  "description": "",
   "requestFramePermissions": []
 }
