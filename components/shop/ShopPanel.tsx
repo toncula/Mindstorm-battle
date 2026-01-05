@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { PlayerState, CardData, EnergyType } from '../../types';
+import { PlayerState, CardData, EnergyType, EnergyUnit } from '../../types';
 import { RefreshCw, ArrowUpCircle, Lock, Unlock, Eye, EyeOff, Swords, Zap } from 'lucide-react';
 import UnitCard from './cards/UnitCard';
 import { tryPayEnergy, createWhiteEnergyRequest, getUsedIndices } from '../../simulation/energyEngine';
@@ -25,45 +25,46 @@ interface ShopPanelProps {
     onCardLeave: () => void;
 }
 
-interface VisualEnergyNode {
-    id: number;
-    type: EnergyType;
-    isNew?: boolean;
+interface VisualEnergyNode extends EnergyUnit {
+    isNew?: boolean;     // 标记：这是一个刚产生的新球（触发入场动画）
+    isLeaving?: boolean; // 标记：这是一个即将消失的球（触发出场动画，可选）
 }
 
 const EnergyBallItem: React.FC<{
-    node: VisualEnergyNode;
+    node: VisualEnergyNode; // 使用新类型
     index: number;
     total: number;
     getStyle: (t: EnergyType) => string;
-    isHighlighted?: boolean;
+    isHighlighted?: boolean; // 新增：是否被高亮（预览消耗）
 }> = ({ node, index, total, getStyle, isHighlighted }) => {
+    // 动画状态：如果是新球，先设为未挂载(mounted=false)，等待下一帧激活
     const [mounted, setMounted] = useState(!node.isNew);
 
     useLayoutEffect(() => {
         if (node.isNew && !mounted) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    setMounted(true);
-                });
+            const frame = requestAnimationFrame(() => {
+                setMounted(true); // 触发入场动画
             });
+            return () => cancelAnimationFrame(frame);
         }
     }, [node.isNew, mounted]);
 
     const isFirst = index === 0;
-    const baseMargin = isFirst ? 0 : -18;
+    const baseMargin = isFirst ? 0 : -18; // 重叠效果
 
     return (
         <div
             className={`
-        rounded-full border-[3px] shrink-0 h-12
-        transition-all duration-300 ease-out 
-        ${getStyle(node.type)}
-        ${mounted ? 'w-12 opacity-100 scale-100' : 'w-0 opacity-0 scale-0 border-0'}
-      `}
+                rounded-full border-[3px] shrink-0 h-12 w-12
+                transition-all duration-300 ease-out 
+                ${getStyle(node.type)}
+                // 核心动画类：控制显隐
+                ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-0 border-0 w-0'}
+            `}
             style={{
                 marginLeft: mounted ? `${baseMargin}px` : '0px',
                 zIndex: index,
+                // 预览跳动逻辑
                 transform: isHighlighted
                     ? `scale(${1 + (index / total) * 0.05}) translateY(-24px)`
                     : `scale(${1 + (index / total) * 0.05})`,
@@ -80,17 +81,15 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
     onStartCombat, onBuyCard, onCardHover, onCardLeave
 }) => {
 
-    // --- 能量队列动画系统 ---
     const [visualQueue, setVisualQueue] = useState<VisualEnergyNode[]>([]);
-    const [previewIndices, setPreviewIndices] = useState<number[]>([]);
-    const nextIdRef = useRef(0);
+    const [previewIndices, setPreviewIndices] = useState<number[]>([]);// 用于存储哪几个球要跳动
     const isInitialMount = useRef(true);
 
     useEffect(() => {
         if (isInitialMount.current) {
-            const initialNodes = player.energyQueue.map(type => ({
-                id: nextIdRef.current++,
-                type,
+            // 初始化
+            const initialNodes = player.energyQueue.map(unit => ({
+                ...unit,
                 isNew: false
             }));
             setVisualQueue(initialNodes);
@@ -103,35 +102,45 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
         const processQueue = () => {
             setVisualQueue(current => {
                 const targetQueue = player.energyQueue;
-
+                // A. 快速检查：如果 ID 序列完全一致，无需更新
                 if (current.length === targetQueue.length) {
-                    const isMatch = current.every((node, i) => node.type === targetQueue[i]);
-                    if (isMatch) return current;
+                    const currentIds = current.map(n => n.id).join(',');
+                    const targetIds = targetQueue.map(n => n.id).join(',');
+                    if (currentIds === targetIds) return current;
                 }
 
                 let next = [...current];
-                let delay = 100;
+                let shouldPlayPop = false;
+                let shouldPlayClick = false;
+                // B. Diff 算法
+                // B1. 优先处理删除 (消费)
+                // 找到 visualQueue 中存在，但在 player.energyQueue 中已消失的球
+                const removedIndex = current.findIndex(c => !targetQueue.find(t => t.id === c.id));
 
-                if (current.length < targetQueue.length) {
-                    const newType = targetQueue[current.length];
-                    next.push({
-                        id: nextIdRef.current++,
-                        type: newType,
-                        isNew: true
-                    });
-                    playSound('pop');
-                } else if (current.length > targetQueue.length) {
-                    next.shift();
-                    playSound('click');
+                if (removedIndex !== -1) {
+                    next.splice(removedIndex, 1); // 移除该球
+                    shouldPlayClick = true;       // 标记播放音效
                 } else {
-                    return targetQueue.map((type, i) => ({
-                        id: current[i]?.id || nextIdRef.current++,
-                        type,
-                        isNew: false
-                    }));
-                }
+                    // B2. 处理新增 (获得)
+                    // 找到 player.energyQueue 中存在，但在 visualQueue 中没有的球
+                    // 这里简化处理：假设新球总是加在末尾 (符合目前逻辑)
+                    const nextTargetUnit = targetQueue.find(t => !current.find(c => c.id === t.id));
 
-                timeoutId = setTimeout(processQueue, delay);
+                    if (nextTargetUnit) {
+                        next.push({
+                            ...nextTargetUnit,
+                            isNew: true // 标记为新球，触发 EnergyBallItem 的入场动画
+                        });
+                        shouldPlayPop = true;
+                    } else {
+                        // 兜底：如果长度不同但找不到具体差异，直接强制同步
+                        return targetQueue.map(u => ({ ...u, isNew: false }));
+                    }
+                }
+                if (shouldPlayClick) playSound('click');
+                else if (shouldPlayPop) playSound('pop');
+
+                timeoutId = setTimeout(processQueue, 100);
                 return next;
             });
         };
@@ -148,9 +157,10 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
         return tryPayEnergy(getCostRequest(cost), player.energyQueue).success;
     };
 
-    // --- Preview Logic ---
+    // 计算预览索引
     const handlePreviewCost = (cost: number | EnergyType[]) => {
-        const req = getCostRequest(cost);
+        const req = Array.isArray(cost) ? cost : createWhiteEnergyRequest(cost);
+        // 使用引擎计算将会消耗哪些球的索引
         const indices = getUsedIndices(req, player.energyQueue);
         if (indices) {
             setPreviewIndices(indices);

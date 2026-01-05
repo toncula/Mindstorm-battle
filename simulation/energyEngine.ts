@@ -1,10 +1,11 @@
-import { EnergyType } from '../types';
+import { EnergyType, EnergyUnit } from '../types/energy';
+import { globalHooks } from '../hooks/registry'; // 预留 Hook 调用
 
 /**
  * 包装能量球对象，用于在算法中标记是否被使用
  */
 interface EnergyNode {
-    type: EnergyType;
+    unit: EnergyUnit;  // 引用实体
     originalIndex: number;
     used: boolean;
 }
@@ -29,12 +30,15 @@ const findSolutionRecursive = (
     // 获取目标： 拿出当前要处理的请求
     const req = requests[requestIdx];
 
-    // 从左向右搜索
+    // 倒序搜索： 从队列的第一个小球开始，向最后一个一个小球遍历
     for (let i = 0; i <= currentQueue.length - 1; i++) {
         const node = currentQueue[i];
 
         // 检查： 这个球符合当前请求吗？且未被占用
-        if (!node.used && node.type === req) {
+        // TODO: Phase 3 将在这里引入 Hook (CAN_PAY_ENERGY) 进行更复杂的判定
+        const isMatch = node.unit.type === req;
+
+        if (!node.used && isMatch) {
             // 尝试： 如果符合，暂时将这个球标记为“已占用”
             node.used = true;
 
@@ -49,24 +53,24 @@ const findSolutionRecursive = (
         }
     }
 
-    // 无解： 如果遍历完整个队列都找不到能让后续步骤成功的球，返回失败
+    // 无解
     return false;
 };
 
 /**
  * 尝试支付能量成本
  * @param costRequests 需要的能量类型数组
- * @param currentQueue 当前玩家的能量队列
- * @returns { success: boolean, newQueue: EnergyType[] } 如果成功，返回剩余的新队列；如果失败，返回原队列
+ * @param currentQueue 当前玩家的能量队列 (EnergyUnit[])
+ * @returns { success: boolean, newQueue: EnergyUnit[] }
  */
 export const tryPayEnergy = (
     costRequests: EnergyType[],
-    currentQueue: EnergyType[]
-): { success: boolean; newQueue: EnergyType[] } => {
+    currentQueue: EnergyUnit[]
+): { success: boolean; newQueue: EnergyUnit[] } => {
 
     // 1. 包装队列以支持标记状态
-    const wrappedQueue: EnergyNode[] = currentQueue.map((type, index) => ({
-        type,
+    const wrappedQueue: EnergyNode[] = currentQueue.map((unit, index) => ({
+        unit,
         originalIndex: index,
         used: false
     }));
@@ -79,7 +83,7 @@ export const tryPayEnergy = (
         // 过滤掉被标记为 used 的能量球，生成新队列
         const newQueue = wrappedQueue
             .filter(node => !node.used)
-            .map(node => node.type);
+            .map(node => node.unit);
         return { success: true, newQueue };
     } else {
         return { success: false, newQueue: currentQueue };
@@ -88,17 +92,14 @@ export const tryPayEnergy = (
 
 /**
  * 获取用于支付成本的能量球索引
- * @param costRequests 需要的能量类型数组
- * @param currentQueue 当前玩家的能量队列
- * @returns { number[] | null } 如果支付成功，返回被使用的能量球索引数组；如果失败，返回 null
  */
 export const getUsedIndices = (
     costRequests: EnergyType[],
-    currentQueue: EnergyType[]
+    currentQueue: EnergyUnit[]
 ): number[] | null => {
-    // 1. 包装队列以支持标记状态
-    const wrappedQueue: EnergyNode[] = currentQueue.map((type, index) => ({
-        type,
+    // 1. 包装队列
+    const wrappedQueue: EnergyNode[] = currentQueue.map((unit, index) => ({
+        unit,
         originalIndex: index,
         used: false
     }));
@@ -117,7 +118,7 @@ export const getUsedIndices = (
 };
 
 /**
- * 辅助函数：生成纯白色能量的请求数组 (兼容旧的金币逻辑)
+ * 辅助函数：生成纯白色能量的请求数组
  */
 export const createWhiteEnergyRequest = (amount: number): EnergyType[] => {
     return Array(amount).fill(EnergyType.WHITE);

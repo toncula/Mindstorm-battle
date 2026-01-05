@@ -1,3 +1,4 @@
+//unused ui footprint for energy queue 
 import React from 'react';
 import { EnergyType } from '../../types';
 

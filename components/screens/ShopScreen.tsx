@@ -7,8 +7,8 @@ import ShopPanel from '../shop/ShopPanel';
 import ArmyPanel from '../shop/cards/ArmyPanel';
 import DiscoveryModal from '../modals/DiscoveryModal';
 import { SoundType } from '../../services/audioService';
-//import EnergyQueue from '../shop/EnergyQueue'; // New Import
-import { tryPayEnergy, createWhiteEnergyRequest } from '../../simulation/energyEngine'; // New Import
+import { tryPayEnergy, createWhiteEnergyRequest } from '../../simulation/energyEngine';
+import { createEnergyBatch } from '../../simulation/energyHelpers';
 
 interface ShopScreenProps {
     player: PlayerState;
@@ -29,6 +29,7 @@ interface ShopScreenProps {
     handleInteraction: () => void;
     language: Language;
     t: any;
+    onLevelUpTavern: () => void; // 确保 App.tsx 传递了这个 Prop
 }
 
 const ShopScreen: React.FC<ShopScreenProps> = ({
@@ -36,7 +37,8 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
     isShopLocked, setIsShopLocked, refreshShop,
     enemyConfig, round, isTransitioning, onStartCombat,
     onCardHover, onCardLeave, setNotifications,
-    playSound, handleInteraction, language, t
+    playSound, handleInteraction, language, t,
+    onLevelUpTavern
 }) => {
     const [shopViewMode, setShopViewMode] = useState<'SHOP' | 'INTEL'>('SHOP');
     const [cardsSoldThisTurn, setCardsSoldThisTurn] = useState(0);
@@ -50,11 +52,15 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
 
     // --- Handlers ---
 
+    // 注意：App.tsx 可能传递了 onBuyCard 处理函数，但这里似乎实现了自己的逻辑。
+    // 如果 App.tsx 的 handleBuyCard 已经处理了所有逻辑，这里应该优先使用它，
+    // 或者确保两边的逻辑是一致的。为了保持 ShopScreen 独立性，我们保留这里的逻辑但适配新能量系统。
+
     const handleBuyCard = (card: CardData) => {
         handleInteraction();
         if (isTransitioning) return;
 
-        // ENERGY CHECK using new Engine
+        // 能量检查使用新引擎
         const cost = 3;
         const payment = tryPayEnergy(createWhiteEnergyRequest(cost), player.energyQueue);
 
@@ -94,7 +100,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
 
             setPlayer(prev => ({
                 ...prev,
-                energyQueue: payment.newQueue, // Update Energy
+                energyQueue: payment.newQueue, // 更新能量队列
                 hand: newHand
             }));
 
@@ -112,6 +118,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
         } else {
             const emptyIndex = player.hand.findIndex(c => c === null);
             if (emptyIndex === -1) {
+                // 暂时使用 alert，后续可优化为 toast
                 alert(t.adventure.army_full);
                 playSound('error');
                 return;
@@ -155,7 +162,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
 
             setPlayer(prev => ({
                 ...prev,
-                energyQueue: payment.newQueue, // Update Energy
+                energyQueue: payment.newQueue, // 更新能量队列
                 hand: newHand
             }));
             setShopCards(prev => prev.filter(c => c.id !== card.id));
@@ -178,16 +185,20 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
 
         setCardsSoldThisTurn(prev => prev + 1);
 
+        // 生成卖卡获得的能量 (1个白色能量)
+        const refundEnergy = createEnergyBatch(EnergyType.WHITE, 1);
+
         setPlayer(prev => ({
             ...prev,
-            energyQueue: [EnergyType.WHITE, ...prev.energyQueue],
+            // 将生成的 EnergyUnit 添加到队列末尾
+            energyQueue: [...prev.energyQueue, ...refundEnergy],
             hand: newHand
         }));
         onCardLeave();
     };
 
     const handleSelectDiscovery = (card: CardData) => {
-        // Discovery logic unchanged as it doesn't cost energy
+        // 发现逻辑不消耗能量，保持原样
         handleInteraction();
         if (isTransitioning) return;
         playSound('upgrade');
@@ -235,7 +246,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
         handleInteraction();
         if (isTransitioning) return;
 
-        // ENERGY CHECK
+        // 能量检查
         const payment = tryPayEnergy(REFRESH_COST, player.energyQueue);
 
         if (!payment.success) {
@@ -256,12 +267,17 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
         setIsShopLocked(!isShopLocked);
     };
 
-    const handleLevelUpTavern = () => {
+    // 如果 App.tsx 已经传递了 onLevelUpTavern，我们可以直接使用它，
+    // 但为了确保 ShopScreen 内部的逻辑完整性 (如音效、手牌效果)，这里保留本地实现，
+    // 只要它的能量消耗逻辑是正确的。
+    // 注意：App.tsx 里的 handleLevelUpTavern 也做了类似的 setPlayer 操作。
+    // 如果这里覆盖了，需要确保两边不冲突。这里我们优先使用本地逻辑，因为它包含了卡牌升级特效。
+    const handleLevelUpTavernInternal = () => {
         handleInteraction();
         if (isTransitioning) return;
         const cost = player.tavernUpgradeCost;
 
-        // ENERGY CHECK
+        // 能量检查
         const payment = tryPayEnergy(createWhiteEnergyRequest(cost), player.energyQueue);
 
         if (!payment.success || player.tavernTier >= 4) {
@@ -302,7 +318,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
                 t={t}
                 language={language}
                 refreshCost={REFRESH_COST}
-                onLevelUpTavern={handleLevelUpTavern}
+                onLevelUpTavern={handleLevelUpTavernInternal} // 使用内部处理函数
                 onToggleLock={handleToggleLock}
                 onRefreshShop={handleRefreshShopInternal}
                 onToggleViewMode={() => setShopViewMode(prev => prev === 'SHOP' ? 'INTEL' : 'SHOP')}

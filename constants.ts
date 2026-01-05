@@ -2,6 +2,7 @@
 import { CardData, UnitType } from './types';
 import { CARD_TEMPLATES } from './data/cardTemplates';
 import { EnergyType } from './types';
+import { createWhiteEnergyRequest } from './simulation/energyEngine';
 export { CARD_TEMPLATES } from './data/cardTemplates';
 // Export UPGRADES from its data source to fix missing export error in Codex
 export { UPGRADES } from './data/upgrades';
@@ -21,7 +22,7 @@ export const INITIAL_ADVENTURE_POINTS = 6;
 export const MAX_ADVENTURE_POINTS = 6;
 //export const ADVENTURE_COST = 2;
 //export const ADVENTURE_REFUND = 1;
-export const REFRESH_COST = [EnergyType.WHITE];
+export const REFRESH_COST = createWhiteEnergyRequest(1);
 export const TAVERN_UPGRADE_BASE_COST = 3;
 export const MAX_ROUNDS = 12;
 

@@ -1,4 +1,4 @@
-
+//legacy
 import { UpgradeOption, UnitType } from '../types';
 
 export const UPGRADES: UpgradeOption[] = [

@@ -1,3 +1,6 @@
+export * from './types/energy';
+export * from './types/hooks'; 
+import { EnergyUnit, EnergyType } from './types/energy';
 
 export enum UnitType {
   MELEE = 'MELEE',
@@ -178,19 +181,12 @@ export interface RoundSummary {
     effects: string[];
 }
 
-export enum EnergyType {
-  WHITE = 'WHITE',
-  RED = 'RED',
-  GREEN = 'GREEN',
-  BLUE = 'BLUE',
-  BLACK = 'BLACK'
-}
 
 export interface PlayerState {
   hp: number;
   // gold: number; // REMOVED
-  energyQueue: EnergyType[]; // REPLACED gold
-  income: EnergyType[]; 
+  energyQueue: EnergyUnit[]; // REPLACED gold
+  income: EnergyUnit[]; 
   energyRetention: number;
   adventurePoints: number; // Kept for structure, though unused visibly
   tavernTier: number;
