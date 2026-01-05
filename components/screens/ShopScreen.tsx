@@ -8,7 +8,8 @@ import ArmyPanel from '../shop/cards/ArmyPanel';
 import DiscoveryModal from '../modals/DiscoveryModal';
 import { SoundType } from '../../services/audioService';
 import { tryPayEnergy } from '../../simulation/energyEngine';
-import { createEnergyBatch, createEnergyRequest } from '../../simulation/energyHelpers';
+import { createEnergyBatch, createEnergyRequest,createCost,createSimpleCost} from '../../simulation/energyHelpers';
+import { EnergyTypeArray } from '../../types';
 
 interface ShopScreenProps {
     player: PlayerState;
@@ -62,7 +63,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
 
         // 能量检查使用新引擎
         const cost = 3;
-        const payment = tryPayEnergy(createEnergyRequest(EnergyType.WHITE, cost), player.energyQueue);
+        const payment = tryPayEnergy(createSimpleCost(EnergyType.WHITE,cost), player.energyQueue);
 
         if (!payment.success) {
             playSound('error');
@@ -247,7 +248,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
         if (isTransitioning) return;
 
         // 能量检查
-        const payment = tryPayEnergy(REFRESH_COST, player.energyQueue);
+        const payment = tryPayEnergy(createSimpleCost(EnergyType.WHITE,REFRESH_COST), player.energyQueue);
 
         if (!payment.success) {
             playSound('error');
@@ -278,7 +279,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
         const cost = player.tavernUpgradeCost;
 
         // 能量检查
-        const payment = tryPayEnergy(createEnergyRequest(EnergyType.WHITE,cost), player.energyQueue);
+        const payment = tryPayEnergy(createSimpleCost(EnergyTypeArray.ALL,cost), player.energyQueue);
 
         if (!payment.success || player.tavernTier >= 4) {
             playSound('error');

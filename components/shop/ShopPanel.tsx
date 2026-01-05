@@ -4,7 +4,7 @@ import { RefreshCw, ArrowUpCircle, Lock, Unlock, Eye, EyeOff, Swords, Zap } from
 import UnitCard from './cards/UnitCard';
 import { tryPayEnergy,getUsedIndices } from '../../simulation/energyEngine';
 import { playSound } from '../../services/audioService';
-import { createEnergyRequest } from '@/simulation/energyHelpers';
+import { createEnergyRequest, createSimpleCost } from '@/simulation/energyHelpers';
 
 interface ShopPanelProps {
     player: PlayerState;
@@ -155,12 +155,12 @@ const ShopPanel: React.FC<ShopPanelProps> = ({
     };
 
     const canAfford = (cost: number) => {
-        return tryPayEnergy(createEnergyRequest(EnergyType.WHITE,cost), player.energyQueue).success;
+        return tryPayEnergy(createSimpleCost(EnergyType.WHITE,cost), player.energyQueue).success;
     };
 
     // 计算预览索引
     const handlePreviewCost = (cost: number) => {
-        const req = Array.isArray(cost) ? cost : createEnergyRequest(EnergyType.WHITE, cost);
+        const req = Array.isArray(cost) ? cost : createSimpleCost(EnergyType.WHITE, cost);
         // 使用引擎计算将会消耗哪些球的索引
         const indices = getUsedIndices(req, player.energyQueue);
         if (indices) {

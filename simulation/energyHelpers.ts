@@ -1,4 +1,10 @@
-import { EnergyUnit, EnergyType, EnergyTrait, EnergyConfig } from '../types/energy';
+import { 
+    EnergyUnit,
+    EnergyType,
+    EnergyTrait,
+    EnergyConfig,
+    EnergyCostRequirement,
+    ComplexCostRequirement} from '../types/energy';
 
 /**
  * 创建一个新的能量单元
@@ -44,4 +50,45 @@ export const createEnergyRequest = (type: EnergyType, count: number, traits: Ene
  */
 export const createEnergyBatch = (type: EnergyType, count: number, traits: EnergyTrait[] = []): EnergyUnit[] => {
     return Array.from({ length: count }, () => createEnergy(type, traits));
+};
+
+/**
+ * 简单需求创建工厂 (兼容旧代码)
+ * 允许传入单个颜色（严格匹配）或颜色数组（多选一匹配）
+ */
+export const createSimpleCost = (type: EnergyType | EnergyType[], count: number): EnergyCostRequirement[] => {
+    return Array.from({ length: count }, () => {
+        if (Array.isArray(type)) {
+            // 如果是数组，生成多选一的复杂需求
+            return { allowedTypes: type };
+        }
+        // 如果是单个值，直接返回类型
+        return type;
+    });
+};
+
+
+/**
+ * 灵活需求创建工厂 (Pattern Builder)
+ * 用法:
+ * createCost(EnergyType.RED, EnergyType.WHITE) -> [RED, WHITE]
+ * createCost([EnergyType.RED, EnergyType.BLUE], EnergyType.WHITE) -> [{allowed: [RED, BLUE]}, WHITE]
+ */
+type CostArg = EnergyType | EnergyType[] | ComplexCostRequirement;
+
+export const createCost = (...args: CostArg[]): EnergyCostRequirement[] => {
+    return args.map(arg => {
+        // 情况 1: 已经是复杂对象，直接返回
+        if (typeof arg === 'object' && !Array.isArray(arg)) {
+            return arg as ComplexCostRequirement;
+        }
+
+        // 情况 2: 数组 -> 转换为 allowedTypes (多选一)
+        if (Array.isArray(arg)) {
+            return { allowedTypes: arg };
+        }
+
+        // 情况 3: 单个枚举 -> 直接返回 (严格匹配)
+        return arg as EnergyType;
+    });
 };
