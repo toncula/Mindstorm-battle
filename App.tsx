@@ -295,7 +295,7 @@ const App: React.FC = () => {
     const nextIncomeQueue = [...player.income];
     if (nextIncomeQueue.length < MAX_INCOME_CAP) {
       // 这里的 EnergyType.WHITE 是合法的，因为 income 是 (Type | Config)[]
-      nextIncomeQueue.push(EnergyType.WHITE);
+      nextIncomeQueue.push(createEnergyConfig(EnergyType.WHITE));
     }
 
     const effectEnergyCount = Number(pendingTurnEffects?.gold) || 0;

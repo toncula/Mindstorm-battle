@@ -1,6 +1,6 @@
 import React from 'react';
 import { Trophy, Heart, TrendingUp, ArrowRight, RefreshCw, Sparkles, Skull } from 'lucide-react';
-import { RoundSummary, EnergyType } from '../../types';
+import { RoundSummary, EnergyType, EnergyConfig } from '../../types';
 
 interface RoundOverScreenProps {
     summary: RoundSummary;
@@ -11,17 +11,17 @@ interface RoundOverScreenProps {
 const RoundOverScreen: React.FC<RoundOverScreenProps> = ({ summary, t, onNextRound }) => {
     const isVictory = summary.winner === 'PLAYER';
 
-    const renderEnergyBalls = (queue: EnergyType[]) => {
+    const renderEnergyBalls = (queue: EnergyConfig[]) => {
         if (!queue) return null;
         return (
             <div className="flex -space-x-1.5 flex-wrap justify-end max-w-[200px]">
-                {queue.map((type, i) => (
+                {queue.map((Config, i) => (
                     <div
                         key={i}
-                        className={`w-4 h-4 rounded-full border border-slate-300 shadow-sm shrink-0 mb-1 ${type === EnergyType.WHITE ? 'bg-white' :
-                                type === EnergyType.RED ? 'bg-red-500' :
-                                    type === EnergyType.GREEN ? 'bg-emerald-500' :
-                                        type === EnergyType.BLUE ? 'bg-blue-500' : 'bg-slate-500'
+                        className={`w-4 h-4 rounded-full border border-slate-300 shadow-sm shrink-0 mb-1 ${Config.type === EnergyType.WHITE ? 'bg-white' :
+                                Config.type === EnergyType.RED ? 'bg-red-500' :
+                                    Config.type === EnergyType.GREEN ? 'bg-emerald-500' :
+                                        Config.type === EnergyType.BLUE ? 'bg-blue-500' : 'bg-slate-500'
                             }`}
                     />
                 ))}
