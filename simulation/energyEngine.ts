@@ -1,4 +1,4 @@
-import { EnergyType, EnergyUnit } from '../types/energy';
+import { EnergyType, EnergyUnit,EnergyConfig} from '../types/energy';
 import { globalHooks } from '../hooks/registry'; // 预留 Hook 调用
 
 /**
@@ -20,7 +20,7 @@ interface EnergyNode {
 const findSolutionRecursive = (
     requestIdx: number,
     currentQueue: EnergyNode[],
-    requests: EnergyType[]
+    requests: EnergyConfig[]
 ): boolean => {
     // 结束条件： 如果所有请求都已成功匹配，返回成功
     if (requestIdx >= requests.length) {
@@ -36,7 +36,7 @@ const findSolutionRecursive = (
 
         // 检查： 这个球符合当前请求吗？且未被占用
         // TODO: Phase 3 将在这里引入 Hook (CAN_PAY_ENERGY) 进行更复杂的判定
-        const isMatch = node.unit.type === req;
+        const isMatch = node.unit.type === req.type;
 
         if (!node.used && isMatch) {
             // 尝试： 如果符合，暂时将这个球标记为“已占用”
@@ -64,7 +64,7 @@ const findSolutionRecursive = (
  * @returns { success: boolean, newQueue: EnergyUnit[] }
  */
 export const tryPayEnergy = (
-    costRequests: EnergyType[],
+    costRequests: EnergyConfig[],
     currentQueue: EnergyUnit[]
 ): { success: boolean; newQueue: EnergyUnit[] } => {
 
@@ -94,7 +94,7 @@ export const tryPayEnergy = (
  * 获取用于支付成本的能量球索引
  */
 export const getUsedIndices = (
-    costRequests: EnergyType[],
+    costRequests: EnergyConfig[],
     currentQueue: EnergyUnit[]
 ): number[] | null => {
     // 1. 包装队列
@@ -117,9 +117,3 @@ export const getUsedIndices = (
     }
 };
 
-/**
- * 辅助函数：生成纯白色能量的请求数组
- */
-export const createWhiteEnergyRequest = (amount: number): EnergyType[] => {
-    return Array(amount).fill(EnergyType.WHITE);
-};

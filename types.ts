@@ -1,6 +1,6 @@
 export * from './types/energy';
 export * from './types/hooks'; 
-import { EnergyUnit, EnergyType } from './types/energy';
+import { EnergyUnit, EnergyType, EnergyConfig } from './types/energy';
 
 export enum UnitType {
   MELEE = 'MELEE',
@@ -186,7 +186,7 @@ export interface PlayerState {
   hp: number;
   // gold: number; // REMOVED
   energyQueue: EnergyUnit[]; // REPLACED gold
-  income: EnergyUnit[]; 
+  income: EnergyConfig[]; 
   energyRetention: number;
   adventurePoints: number; // Kept for structure, though unused visibly
   tavernTier: number;

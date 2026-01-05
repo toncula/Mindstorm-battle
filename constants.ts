@@ -1,8 +1,8 @@
-
 import { CardData, UnitType } from './types';
 import { CARD_TEMPLATES } from './data/cardTemplates';
-import { EnergyType } from './types';
-import { createWhiteEnergyRequest } from './simulation/energyEngine';
+import { EnergyType, EnergyConfig } from './types';
+import { createEnergyRequest,createEnergyBatch } from './simulation/energyHelpers'; 
+
 export { CARD_TEMPLATES } from './data/cardTemplates';
 // Export UPGRADES from its data source to fix missing export error in Codex
 export { UPGRADES } from './data/upgrades';
@@ -11,9 +11,9 @@ export { UPGRADES } from './data/upgrades';
 export const DEBUG_ADVENTURE_LOG = true;
 
 // --- GAMEPLAY CONFIG ---
-export const INITIAL_ENERGY = [EnergyType.WHITE, EnergyType.WHITE, EnergyType.WHITE]
+export const INITIAL_ENERGY = createEnergyBatch(EnergyType.WHITE,3)
 export const INITIAL_PLAYER_HP = 3;
-export const INITIAL_INCOME = [EnergyType.WHITE, EnergyType.WHITE, EnergyType.WHITE];
+export const INITIAL_INCOME = createEnergyRequest(EnergyType.WHITE, 3);
 export const ADDTIONAL_INCOME = [];
 export const INITIAL_RETENT = 1;
 export const MAX_INCOME_CAP = 10;
@@ -22,7 +22,7 @@ export const INITIAL_ADVENTURE_POINTS = 6;
 export const MAX_ADVENTURE_POINTS = 6;
 //export const ADVENTURE_COST = 2;
 //export const ADVENTURE_REFUND = 1;
-export const REFRESH_COST = createWhiteEnergyRequest(1);
+export const REFRESH_COST = createEnergyRequest(EnergyType.WHITE, 1);
 export const TAVERN_UPGRADE_BASE_COST = 3;
 export const MAX_ROUNDS = 12;
 

@@ -24,5 +24,5 @@ export interface EnergyUnit {
 // 能量配置结构 (用于描述未来的收入，还没有实例化)
 export interface EnergyConfig {
     type: EnergyType;
-    traits?: EnergyTrait[]; // 预设特性列表
+    traits: Set<EnergyTrait>; // 预设特性列表
 }

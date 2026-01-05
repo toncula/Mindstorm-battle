@@ -1,4 +1,4 @@
-import { EnergyUnit, EnergyType, EnergyTrait } from '../types/energy';
+import { EnergyUnit, EnergyType, EnergyTrait, EnergyConfig } from '../types/energy';
 
 /**
  * 创建一个新的能量单元
@@ -17,6 +17,28 @@ export const createEnergy = (type: EnergyType, traits: EnergyTrait[] = []): Ener
     };
 };
 
+/**
+ * 创建一个新的能量请求
+ * @param type 能量颜色
+ * @param traits 初始特性列表
+ * @returns EnergyConfig 对象
+ */
+export const createEnergyConfig = (type: EnergyType, traits: EnergyTrait[] = []):EnergyConfig => {
+    return{
+        type,
+        traits: new Set(traits)
+    };
+};
+
+/**
+ * 批量创建单色的能量请求(用于收入)
+ * @param type 
+ * @param count 
+ * @returns 
+ */
+export const createEnergyRequest = (type: EnergyType, count: number, traits: EnergyTrait[] = []): EnergyConfig[] => {
+    return Array.from({ length: count }, () => createEnergyConfig(type, traits));
+};
 /**
  * 批量创建能量单元 (主要用于初始化)
  */

@@ -17,11 +17,13 @@ import {
   generateRandomCard,
   getBaseTavernCost,
   MAX_ROUNDS,
-  BATTLE_START_DELAY
+  BATTLE_START_DELAY,
+  REFRESH_COST
 } from './constants';
 // --- 新增导入：能量工厂与引擎 ---
-import { createEnergyBatch } from './simulation/energyHelpers';
-import { tryPayEnergy, createWhiteEnergyRequest } from './simulation/energyEngine';
+import { createEnergyBatch, createEnergyRequest } from './simulation/energyHelpers';
+import { tryPayEnergy } from './simulation/energyEngine';
+import { createEnergyConfig } from './simulation/energyHelpers';
 // ------------------------------
 import BattleCanvas from './components/battle/BattleCanvas';
 import CardInfoPanel from './components/shop/cards/CardInfoPanel';
@@ -49,17 +51,13 @@ const App: React.FC = () => {
   const [player, setPlayer] = useState<PlayerState>({
     hp: INITIAL_PLAYER_HP,
     // 修改点：将 EnergyType[] 转换为 EnergyUnit[]
-    energyQueue: createEnergyBatch(INITIAL_ENERGY[0], INITIAL_ENERGY.length),
+    energyQueue: [...INITIAL_ENERGY],
     income: [...INITIAL_INCOME],
     energyRetention: INITIAL_RETENT,
     adventurePoints: INITIAL_ADVENTURE_POINTS,
     tavernTier: 1,
     tavernUpgradeCost: getBaseTavernCost(1),
     hand: Array(7).fill(null),
-    shopSlots: 3, // 补充缺失字段，假设默认为 3
-    maxHp: INITIAL_PLAYER_HP, // 补充缺失字段
-    level: 1, // 补充缺失字段
-    exp: 0 // 补充缺失字段
   });
 
   const [shopCards, setShopCards] = useState<CardData[]>([]);
@@ -95,9 +93,7 @@ const App: React.FC = () => {
   const refreshShop = (tierOverride?: number) => {
     // 如果不是强制刷新（比如初始化或回合开始），则需要支付能量
     if (tierOverride === undefined) {
-      const refreshCost = 1;
-      const costReq = createWhiteEnergyRequest(refreshCost);
-      const result = tryPayEnergy(costReq, player.energyQueue);
+      const result = tryPayEnergy(REFRESH_COST, player.energyQueue);
 
       if (result.success) {
         setPlayer(prev => ({ ...prev, energyQueue: result.newQueue }));
@@ -130,17 +126,13 @@ const App: React.FC = () => {
     const initialTier = 1;
     setPlayer({
       hp: INITIAL_PLAYER_HP,
-      maxHp: INITIAL_PLAYER_HP,
-      energyQueue: createEnergyBatch(INITIAL_ENERGY[0], INITIAL_ENERGY.length), // 使用工厂
+      energyQueue: [...INITIAL_ENERGY],
       income: [...INITIAL_INCOME],
       energyRetention: INITIAL_RETENT,
       adventurePoints: INITIAL_ADVENTURE_POINTS,
       tavernTier: initialTier,
       tavernUpgradeCost: getBaseTavernCost(initialTier),
       hand: Array(7).fill(null),
-      shopSlots: 3,
-      level: 1,
-      exp: 0
     });
     setRound(1);
     setIsInfiniteMode(false);
@@ -178,7 +170,7 @@ const App: React.FC = () => {
 
   // --- 新增：处理酒馆升级 ---
   const handleLevelUpTavern = () => {
-    const costReq = createWhiteEnergyRequest(player.tavernUpgradeCost);
+    const costReq = createEnergyRequest(EnergyType.WHITE,player.tavernUpgradeCost);
     const result = tryPayEnergy(costReq, player.energyQueue);
 
     if (result.success) {
@@ -198,7 +190,7 @@ const App: React.FC = () => {
   // --- 新增：处理购买卡牌 ---
   const handleBuyCard = (card: CardData) => {
     const cost = 3; // 暂时固定为 3
-    const costReq = createWhiteEnergyRequest(cost);
+    const costReq = createEnergyRequest(EnergyType.WHITE,cost);
 
     // 先检查有没有空位
     const emptySlotIndex = player.hand.findIndex(slot => slot === null);
@@ -403,17 +395,13 @@ const App: React.FC = () => {
     // 重置逻辑也要更新
     setPlayer({
       hp: INITIAL_PLAYER_HP,
-      maxHp: INITIAL_PLAYER_HP,
-      energyQueue: createEnergyBatch(INITIAL_ENERGY[0], INITIAL_ENERGY.length),
+      energyQueue: [...INITIAL_ENERGY],
       income: [...INITIAL_INCOME],
       energyRetention: INITIAL_RETENT,
       adventurePoints: INITIAL_ADVENTURE_POINTS,
       tavernTier: 1,
       tavernUpgradeCost: getBaseTavernCost(1),
       hand: Array(7).fill(null),
-      shopSlots: 3,
-      level: 1,
-      exp: 0
     });
     setShopCards([]);
     setIsShopLocked(false);
