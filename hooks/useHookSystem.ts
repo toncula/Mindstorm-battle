@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { registerTraits } from './traitHelpers';
-import { TraitCatalog } from '../data/traits/evergreenCatalogs';
+import { TraitCatalog } from '@/data/traits/registry';
 
 // 这里可以导入其他的 Catalog，比如 EnemyTraits, EnergyTraits
 // import { EnergyTraitCatalog } from '../data/traits/energyCatalog';
