@@ -1,4 +1,4 @@
-import React,{ useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { PlayerState, CardData, GamePhase, RoundSummary, EnergyType } from '../../types';
 import { MAX_ADVENTURE_POINTS, MAX_INCOME_CAP, BATTLE_START_DELAY } from '../../constants';
 import { createEnergyBatch, createEnergyConfig } from '../../simulation/energyHelpers';
@@ -18,11 +18,11 @@ interface UseTurnStartProps {
     setIsShopLocked: React.Dispatch<React.SetStateAction<boolean>>;
     setPhase: React.Dispatch<React.SetStateAction<GamePhase>>;
     pendingTurnEffects: { gold: number, effects: string[] } | null;
-    refreshShop: (tierOverride?: number) => void;
+    // 更新类型定义：确保这里支持 isFree 参数
+    refreshShop: (tierOverride?: number, isFree?: boolean) => void;
     handleInteraction: () => void;
 }
 
-// 对应原本的 advanceRound
 export const useTurnStart = ({
     round,
     setRound,
@@ -51,58 +51,55 @@ export const useTurnStart = ({
         setRound(nextRound);
 
         // --- 收入结算 (Income Generation) ---
-        // 1. 基础收入增长
         const nextIncomeQueue = [...player.income];
         if (nextIncomeQueue.length < MAX_INCOME_CAP) {
             nextIncomeQueue.push(createEnergyConfig(EnergyType.WHITE)); // 默认给白球
         }
 
-        // 2. 实体化能量球 (Instantiate EnergyUnits from Config)
+        // 实体化能量球
         const incomeUnits = nextIncomeQueue.flatMap(cfg => {
-            // 这里我们简化处理，假设 cfg 只是类型或简单对象
             const type = (typeof cfg === 'object') ? cfg.type : cfg as EnergyType;
             return createEnergyBatch(type, 1);
         });
 
-        // 3. 特效奖励能量
+        // 特效奖励能量
         const effectEnergyCount = Number(pendingTurnEffects?.gold) || 0;
         const effectUnits = createEnergyBatch(EnergyType.WHITE, Math.max(0, Math.floor(effectEnergyCount)));
 
         const newEnergyBatch = [...incomeUnits, ...effectUnits];
 
-        // 4. 更新玩家状态
+        // 更新玩家状态
         setPlayer(prev => ({
             ...prev,
             income: nextIncomeQueue,
             adventurePoints: Math.min(prev.adventurePoints + 1, MAX_ADVENTURE_POINTS),
-            tavernUpgradeCost: Math.max(0, prev.tavernUpgradeCost - 1), // 每回合减费
-            // 注意：energyQueue 的更新延迟到动画之后
+            tavernUpgradeCost: Math.max(0, prev.tavernUpgradeCost - 1),
         }));
 
-        // 5. 重置回合状态
+        // 重置回合状态
         setEnemyConfig([]);
         setPendingTurnEffects(null);
         setRoundSummary(null);
 
-        // 6. 刷新商店
-        if (!isShopLocked) {
-            // 使用外部传入的 refreshShop 逻辑 (注意：此处我们不调用 hook 内部方法，而是依赖传入的)
-            // 实际上为了解耦，我们这里可以直接调用 refreshShop，假设它是安全的
-            refreshShop();
-        } else {
-            setIsShopLocked(false); // 解锁，但保留卡牌（除了已买的）
-        }
-
+        // 关键修复 1: 先切换到 SHOP 阶段
+        // 这样可以避开 refreshShop 中可能的 "if (phase !== SHOP) return" 检查
         setPhase(GamePhase.SHOP);
 
-        // 7. 注入能量 (延迟动画)
-        // HOOK TRIGGER: ON_INCOME_GAIN
+        // 关键修复 2: 刷新商店逻辑
+        if (!isShopLocked) {
+            // 传入 isFree: true，强制刷新并忽略金币检查
+            refreshShop(undefined, true);
+        } else {
+            setIsShopLocked(false); // 解锁，但本轮不刷新
+        }
+
+        // 注入能量 (延迟动画)
         setTimeout(() => {
             setPlayer(prev => ({
                 ...prev,
                 energyQueue: [...prev.energyQueue, ...newEnergyBatch]
             }));
-            playSound('pop'); // 收入音效
+            playSound('pop');
         }, 500);
     }, [round, roundSummary, player.income, pendingTurnEffects, isShopLocked, setRound, setPlayer, setEnemyConfig, setPendingTurnEffects, setRoundSummary, setPhase, setIsShopLocked, refreshShop, handleInteraction]);
 

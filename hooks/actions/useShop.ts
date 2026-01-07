@@ -23,34 +23,48 @@ export const useShop = ({
     handleInteraction
 }: UseShopProps) => {
 
-    const refreshShop = useCallback((tierOverride?: number) => {
-        handleInteraction();
+    // [修改] 增加 isFree 参数，默认 false
+    const refreshShop = useCallback((tierOverride?: number, isFree: boolean = false) => {
         if (isTransitioning) return;
 
         const effectiveTier = tierOverride !== undefined ? tierOverride : player.tavernTier;
 
-        // 如果没有 override，说明是玩家手动刷新，需要扣费
-        if (tierOverride === undefined) {
-            const result = tryPayEnergy(createSimpleCost(EnergyType.WHITE, REFRESH_COST), player.energyQueue);
+        // [逻辑修正]
+        // 1. 如果不是免费 (isFree === false)
+        // 2. 且没有指定层级 (tierOverride === undefined，通常意味着手动刷新)
+        // -> 才需要执行能量支付逻辑
+        if (!isFree && tierOverride === undefined) {
+            // 使用你的能量支付系统
+            const result = tryPayEnergy(
+                createSimpleCost(EnergyType.WHITE, REFRESH_COST),
+                player.energyQueue
+            );
 
             if (!result.success) {
                 playSound('error');
-                return;
+                return; // 能量不足，刷新失败
             }
 
-            playSound('click');
+            playSound('click'); // 仅手动刷新播放点击音效
             setPlayer(prev => ({ ...prev, energyQueue: result.newQueue }));
         }
 
-        // 生成新卡牌
+        handleInteraction();
+
+        // 生成新卡牌逻辑保持不变
         const newShop: CardData[] = [];
+        // 商店卡位数量逻辑 (假设基础3张 + 等级)
         const count = Math.min(6, 3 + effectiveTier);
         for (let i = 0; i < count; i++) {
             newShop.push(generateRandomCard(effectiveTier));
         }
 
         setShopCards(newShop);
-        if (tierOverride === undefined) setIsShopLocked(false); // 手动刷新解锁
+
+        // 如果是手动刷新或强制刷新，自动解锁
+        if (!isFree || tierOverride !== undefined) {
+            setIsShopLocked(false);
+        }
     }, [player.tavernTier, player.energyQueue, isTransitioning, setPlayer, setShopCards, setIsShopLocked, handleInteraction]);
 
     return { refreshShop };

@@ -196,7 +196,11 @@ export const useGameEngine = () => {
         setPhase(GamePhase.SHOP);
     };
 
-    const restartGame = startGame;
+    const restartGame = () => {
+        handleInteraction();
+        playSound('click');
+        setPhase(GamePhase.START_MENU);
+    };
 
     const startCombat = () => {
         handleInteraction();
