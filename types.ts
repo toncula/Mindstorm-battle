@@ -111,9 +111,10 @@ export interface CardData {
   unitType: UnitType;
   unitCount: number;
   isGolden?: boolean; 
+  /** @deprecated Migrating to traits array */
   specialEffect?: SpecialEffectId;
   baseStats: CardStats;
-  traits: Trait[];
+  traits?: string[];
   upgrades: UpgradeOption[];
   justBought?: number; 
   lastAdventureEvent?: string;

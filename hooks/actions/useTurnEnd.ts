@@ -1,68 +1,121 @@
-import React,{ useCallback } from 'react';
-import { PlayerState, CardData, GamePhase, RoundSummary, EnergyType } from '../../types';
-import { MAX_ROUNDS, MAX_INCOME_CAP } from '../../constants';
-import { createEnergyConfig } from '../../simulation/energyHelpers';
+import React,{ useState } from 'react';
+import {
+    PlayerState,
+    CardData,
+    GamePhase
+} from '../../types';
+import {
+    BATTLE_START_DELAY
+} from '../../constants';
+import { playSound } from '../../services/audioService';
+import { useHookSystem } from '../useHookSystem';
+import { HookType } from '../../types/hooks';
 
 interface UseTurnEndProps {
     player: PlayerState;
     setPlayer: React.Dispatch<React.SetStateAction<PlayerState>>;
-    round: number;
-    isInfiniteMode: boolean;
-    setPhase: React.Dispatch<React.SetStateAction<GamePhase>>;
-    setRoundSummary: React.Dispatch<React.SetStateAction<RoundSummary | null>>;
-    pendingTurnEffects: { gold: number, effects: string[] } | null;
+    setPhase: (phase: GamePhase) => void;
+    setPendingTurnEffects: (effects: { gold: number, effects: string[] } | null) => void;
+    setEnemyConfig: (enemies: CardData[]) => void;
+    nextEnemies: CardData[];
+    setIsTransitioning: (isTransitioning: boolean) => void;
+    isTransitioning: boolean;
 }
 
-// 对应原本的 resolveBattle
 export const useTurnEnd = ({
     player,
     setPlayer,
-    round,
-    isInfiniteMode,
     setPhase,
-    setRoundSummary,
-    pendingTurnEffects
+    setPendingTurnEffects,
+    setEnemyConfig,
+    nextEnemies,
+    setIsTransitioning,
+    isTransitioning
 }: UseTurnEndProps) => {
+    const { triggerBatch, processSideEffects } = useHookSystem();
 
-    const turnEnd = useCallback((winner: 'PLAYER' | 'ENEMY') => {
-        if (winner === 'PLAYER' && round === MAX_ROUNDS && !isInfiniteMode) {
-            setPhase(GamePhase.VICTORY);
+    const handleTurnEnd = async () => {
+        console.group('🔵 [TurnEnd] Debug Flow'); // 开始调试组
+
+        // 1. 检查防抖锁
+        if (isTransitioning) {
+            console.warn('[TurnEnd] Blocked: isTransitioning is true');
+            console.groupEnd();
             return;
         }
 
-        let damage = 0;
-        if (winner === 'ENEMY') {
-            damage = 1; // 暂时固定伤害，后续可根据剩余敌人计算
-            const newHp = player.hp - damage;
-            setPlayer(prev => ({ ...prev, hp: newHp }));
+        playSound('click');
+        setIsTransitioning(true);
 
-            if (newHp <= 0) {
-                setPhase(GamePhase.GAME_OVER);
-                return;
-            }
+        // 2. 检查输入数据 (手牌)
+        const validCards = player.hand.filter(c => c !== null);
+        console.log('[TurnEnd] Hand Cards to process:', validCards.length, validCards);
+
+        // 3. 触发 Hook
+        console.log(`[TurnEnd] Triggering Hook: ${HookType.ON_TURN_END}`);
+        const { sideEffects, notifications } = triggerBatch(
+            HookType.ON_TURN_END,
+            player.hand,
+            { player }
+        );
+
+        // 4. 检查 Hook 输出结果
+        if (sideEffects.length === 0 && notifications.length === 0) {
+            console.warn('[TurnEnd] No effects triggered! Check if cards have "traits" and if traits handle ON_TURN_END.');
+        } else {
+            console.log('[TurnEnd] Generated SideEffects:', sideEffects);
+            console.log('[TurnEnd] Generated Notifications:', notifications);
         }
 
-        // 准备回合结算摘要
-        const nextIncomeQueue = [...player.income];
-        // 预测下一回合收入显示
-        if (nextIncomeQueue.length < MAX_INCOME_CAP) {
-            nextIncomeQueue.push(createEnergyConfig(EnergyType.WHITE));
-        }
-
-        const effectEnergyCount = Number(pendingTurnEffects?.gold) || 0;
-        const effectTexts = pendingTurnEffects?.effects || [];
-
-        setRoundSummary({
-            winner,
-            damageTaken: damage,
-            baseIncome: nextIncomeQueue,
-            effectGold: effectEnergyCount,
-            adventurePointsEarned: 1,
-            effects: Array.from(new Set(effectTexts))
+        // 5. 执行副作用
+        console.log('[TurnEnd] Processing SideEffects...');
+        setPlayer(prev => {
+            return processSideEffects(prev, sideEffects);
         });
 
-        setPhase(GamePhase.ROUND_OVER);
-    }, [player.hp, player.income, round, isInfiniteMode, pendingTurnEffects, setPlayer, setPhase, setRoundSummary]);
+        // --- 核心逻辑 ---
 
-    return { turnEnd };
+        const goldGenerated = sideEffects
+            .filter(e => e.type === 'ADD_GOLD')
+            .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+        if (notifications.length > 0 || goldGenerated > 0) {
+            playSound('upgrade');
+        }
+
+        // 能量保留逻辑
+        setPlayer(prev => {
+            const currentQueue = prev.energyQueue;
+            const retention = prev.energyRetention;
+
+            const retainedQueue = retention > 0
+                ? currentQueue.slice(-retention)
+                : [];
+
+            console.log(`[TurnEnd] Energy Retained: ${retainedQueue.length} (Retention: ${retention})`);
+
+            return {
+                ...prev,
+                energyQueue: retainedQueue
+            };
+        });
+
+        setPendingTurnEffects({
+            gold: goldGenerated,
+            effects: notifications
+        });
+
+        console.log('[TurnEnd] Scheduled transition to COMBAT');
+        console.groupEnd(); // 结束调试组
+
+        setTimeout(() => {
+            setEnemyConfig(nextEnemies);
+            setPhase(GamePhase.COMBAT);
+            setIsTransitioning(false);
+        }, BATTLE_START_DELAY);
+    };
+
+    return {
+        handleTurnEnd
+    };
 };

@@ -60,19 +60,24 @@ export const getBaseTavernCost = (level: number) => {
 };
 
 export const generateRandomCard = (maxTier: number, minTier: number = 1): CardData => {
-  let available = CARD_TEMPLATES.filter(c => c.tier <= maxTier && c.tier >= minTier);
-  
+  // Use Object.values to ensure this works whether CARD_TEMPLATES is an Array or an Object/Dictionary
+  const allTemplates = Object.values(CARD_TEMPLATES);
+
+  let available = allTemplates.filter(c => c.tier <= maxTier && c.tier >= minTier);
+
   if (available.length === 0) {
-      available = CARD_TEMPLATES.filter(c => c.tier <= maxTier);
+    available = allTemplates.filter(c => c.tier <= maxTier);
+  }
+
+  // Safety fallback
+  if (available.length === 0) {
+    available = allTemplates;
   }
 
   const template = available[Math.floor(Math.random() * available.length)];
   return {
     ...template,
     id: `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    traits: [],
-    // Added upgrades property to satisfy CardData interface
-    upgrades: []
   };
 };
 

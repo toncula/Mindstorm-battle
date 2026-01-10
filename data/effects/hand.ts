@@ -6,24 +6,43 @@ import { CARD_TEMPLATES } from '../../constants';
 export const HandEffects: Record<string, EffectHandler> = {
     // 增加单位数量 (Buff)
     'ADD_UNIT_COUNT': (effect: SideEffect) => (state) => {
-        if (!effect.targetId || !effect.amount) return state;
+        console.log('[HandEffects] ADD_UNIT_COUNT triggered', effect);
+        if (!effect.targetId || !effect.amount) {
+            console.warn('[HandEffects] ADD_UNIT_COUNT skipped: missing targetId or amount');
+            return state;
+        }
 
-        return DomainHelpers.modifyCard(state, effect.targetId, (card) => ({
-            ...card,
-            unitCount: card.unitCount + effect.amount!
-        }));
+        return DomainHelpers.modifyCard(state, effect.targetId, (card) => {
+            console.log(`[HandEffects] Increasing unit count for card ${card.name} (${card.id}): ${card.unitCount} -> ${card.unitCount + effect.amount!}`);
+            return {
+                ...card,
+                unitCount: card.unitCount + effect.amount!
+            };
+        });
     },
 
     // 获得新卡牌 (Summon / Token)
     'ADD_CARD': (effect: SideEffect) => (state) => {
-        if (!effect.templateId) return state;
+        console.log('[HandEffects] ADD_CARD triggered', effect);
+        if (!effect.templateId) {
+            console.warn('[HandEffects] ADD_CARD skipped: missing templateId');
+            return state;
+        }
 
         return DomainHelpers.modifyHand(state, (hand) => {
             const emptyIndex = hand.findIndex(c => c === null);
-            if (emptyIndex === -1) return hand; // 满手牌忽略
+            if (emptyIndex === -1) {
+                console.warn('[HandEffects] ADD_CARD failed: Hand is full');
+                return hand; // 满手牌忽略
+            }
 
-            const template = CARD_TEMPLATES.find(t => t.templateId === effect.templateId);
-            if (!template) return hand;
+            const template = Object.values(CARD_TEMPLATES).find((t: any) => t.id === effect.templateId);
+            if (!template) {
+                console.error(`[HandEffects] ADD_CARD failed: Template not found for id ${effect.templateId}`, Object.keys(CARD_TEMPLATES));
+                return hand;
+            }
+
+            console.log(`[HandEffects] Creating new card from template: ${template.name}`);
 
             const newCard: CardData = {
                 // @ts-ignore - Compatible construction
@@ -38,18 +57,4 @@ export const HandEffects: Record<string, EffectHandler> = {
             return hand;
         });
     },
-
-    // (示例) 丢弃最右边的卡
-    'DISCARD_RIGHTMOST': (effect: SideEffect) => (state) => {
-        return DomainHelpers.modifyHand(state, (hand) => {
-            // 倒序查找第一个非空卡位
-            let idx = hand.length - 1;
-            while (idx >= 0 && hand[idx] === null) idx--;
-
-            if (idx >= 0) {
-                hand[idx] = null;
-            }
-            return hand;
-        });
-    }
 };

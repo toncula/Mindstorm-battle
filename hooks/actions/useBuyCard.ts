@@ -119,6 +119,7 @@ export const useBuyCard = ({
 
             // 应用购买效果 (Hook Logic inside useCardEffects)
             // HOOK TRIGGER: ON_CARD_BUY
+            console.log(`[CardBuy] Triggering Hook: ${HookType.ON_BUY}`);
             const result = applyBuyEffects(purchasedCard, player.hand);
             purchasedCard = result.card;
 

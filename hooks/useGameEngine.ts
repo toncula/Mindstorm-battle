@@ -1,4 +1,4 @@
-import React,{ useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     PlayerState,
     CardData,
@@ -22,16 +22,17 @@ import { useCardEffects } from './useCardEffects';
 import { Language, getTranslation } from '../translations';
 import { initAudio, playSound } from '../services/audioService';
 import { HookType } from '../types/hooks';
+import { useHookSystem } from './useHookSystem';
 
 // --- Imported Action Hooks ---
 import { useShop } from './actions/useShop';
 import { useBuyCard } from './actions/useBuyCard';
-import { useSellCard } from './actions/useSellCard'; 
+import { useSellCard } from './actions/useSellCard';
 import { useDiscovery } from './actions/useDiscovery';
 import { useTavern } from './actions/useTavern';
-import { useTurnEnd } from './actions/useTurnEnd';
+import { useResolveBattle } from './actions/useResolveBattle';
 import { useTurnStart } from './actions/useTurnStart';
-
+import { useTurnEnd } from './actions/useTurnEnd';
 export interface GameEngineActions {
     startGame: () => void;
     restartGame: () => void;
@@ -88,6 +89,9 @@ export const useGameEngine = () => {
         hand: Array(7).fill(null),
     });
 
+    // Hook System (可以在这里预热，但主要逻辑都在子 Hook 中调用)
+    // const { triggerBatch, processSideEffects } = useHookSystem(); 
+
     // 商店与战斗状态
     const [shopCards, setShopCards] = useState<CardData[]>([]);
     const [isShopLocked, setIsShopLocked] = useState(false);
@@ -103,7 +107,8 @@ export const useGameEngine = () => {
 
     // 辅助工具
     const t = getTranslation(language);
-    const { applyBuyEffects, applySellEffects, applyTavernUpgradeEffects, calculateTurnEndEffects } = useCardEffects(language);
+    // [Legacy] 逐步移除 useCardEffects，目前保留 buy/sell/tavern 效果以兼容旧代码
+    const { applyBuyEffects, applySellEffects, applyTavernUpgradeEffects } = useCardEffects(language);
     const [audioInited, setAudioInited] = useState(false);
 
     // --- 2. 状态机与生命周期 Hook (Lifecycle Hooks) ---
@@ -112,9 +117,8 @@ export const useGameEngine = () => {
     useEffect(() => {
         if (phase === GamePhase.SHOP) {
             setCardsSoldThisTurn(0);
-            // HOOK TRIGGER: ON_TURN_START
-            // HookExecutor.triggerGlobal(HookType.ON_TURN_START, { player });
-            console.log(`[HookSystem] Trigger: ${HookType.ON_TURN_START}`);
+            // HOOK TRIGGER: ON_TURN_START (可以在 useTurnStart 中处理)
+            console.log(`[HookSystem] Phase: ${phase}, Ready for Turn Start logic`);
         }
     }, [round, phase]);
 
@@ -153,8 +157,21 @@ export const useGameEngine = () => {
     });
 
     // Phase Transitions
-    const { turnEnd: resolveBattle } = useTurnEnd({
+    // [Legacy] useResolveBattle 实际上处理的是战斗结算 (Combat -> Shop/Summary)
+    const { resolveBattle } = useResolveBattle({
         player, setPlayer, round, isInfiniteMode, setPhase, setRoundSummary, pendingTurnEffects
+    });
+
+    // [New] useTurnEnd 处理回合结束 (Shop -> Combat)
+    const { handleTurnEnd } = useTurnEnd({
+        player,
+        setPlayer,
+        setPhase,
+        setPendingTurnEffects,
+        setEnemyConfig,
+        nextEnemies,
+        setIsTransitioning,
+        isTransitioning
     });
 
     const { turnStart: advanceRound } = useTurnStart({
@@ -202,45 +219,10 @@ export const useGameEngine = () => {
         setPhase(GamePhase.START_MENU);
     };
 
+    // startCombat 现在只是一个指向 handleTurnEnd 的别名
     const startCombat = () => {
         handleInteraction();
-        if (isTransitioning) return;
-
-        playSound('click');
-        setNotifications([]);
-        setIsTransitioning(true);
-
-        // 结算回合结束效果 (Turn End Effects)
-        // HOOK TRIGGER: ON_TURN_END (Prep)
-        const { newHand, goldGenerated, summaryEffects } = calculateTurnEndEffects(player.hand);
-        const safeGoldGenerated = Number.isNaN(Number(goldGenerated)) ? 0 : Number(goldGenerated);
-
-        // 能量截断 (Energy Retention Logic)
-        const retainedQueue = player.energyRetention > 0
-            ? player.energyQueue.slice(-player.energyRetention)
-            : [];
-
-        setPlayer(prev => ({
-            ...prev,
-            energyQueue: retainedQueue,
-            hand: newHand
-        }));
-
-        if (summaryEffects.length > 0) {
-            playSound('upgrade');
-        }
-
-        setPendingTurnEffects({
-            gold: safeGoldGenerated,
-            effects: summaryEffects
-        });
-
-        // 延迟进入战斗画面
-        setTimeout(() => {
-            setEnemyConfig(nextEnemies);
-            setPhase(GamePhase.COMBAT);
-            setIsTransitioning(false);
-        }, BATTLE_START_DELAY);
+        handleTurnEnd();
     };
 
     const enterInfiniteMode = () => {
@@ -285,9 +267,9 @@ export const useGameEngine = () => {
             buyCard,
             sellCard,
             selectDiscovery,
-            startCombat,
-            resolveBattle, // Mapped to useTurnEnd
-            advanceRound,  // Mapped to useTurnStart
+            startCombat,   // 使用新的 useTurnEnd 逻辑
+            resolveBattle, // 保持原有的 battle resolution 逻辑
+            advanceRound,  // 保持原有的 turn start 逻辑
             enterInfiniteMode,
             handleInteraction,
             setNotifications
